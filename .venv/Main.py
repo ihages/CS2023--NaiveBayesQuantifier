@@ -7,45 +7,62 @@
 #   return ham
 
 import nltk
-from nltk.stem import PorterStemmer, WordNetLemmatizer
+from nltk.stem import WordNetLemmatizer, PorterStemmer
+from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 import re
 
+nltk.download('punkt_tab')
+nltk.download('stopwords')
+nltk.download('wordnet')
+nltk.download('averaged_perceptron_tagger')
 
 class DataLoader: # used dataLoader_demo.py from Canvas to start this
     @staticmethod # what does this mean?
-    def preprocess(text):
+    def preprocess(line):
+        text = line
         # convert text to lowercase
-        text.lower()
-        # remove special chars and puntuation
+        text = text.lower()
+
+        # remove special chars and punctuation
         text = re.sub(r'[^a-zA-Z0-9]', ' ', text)
             #https://www.geeksforgeeks.org/python-removing-unwanted-characters-from-string/
-        # split text into list of words
-        word = text.split()
-            #word is a list of words
-        # tokenize words using word tokenize
-        # apply lemmatization
-        wordNetLemmatizer.lemmatize(word)
-            # group words
-        wordNetLemmatizer.stem(word)
-            # apply stem to each word
-        # remove stopwords
-        return word
+
+        #splits words into list
+        words = word_tokenize(text)
+
+        stop_words = set(stopwords.words('english'))
+        i=0
+        for words[i] in words:
+            if words[i] in stop_words:
+                words.pop(i)
+            i+=1
+        i=0
+        #objects
+        wnl = WordNetLemmatizer()
+        ps = PorterStemmer()
+        lemstemwords = []
+        for word in words:
+            lemstemwords.append(ps.stem(wnl.lemmatize(word)))
+            i+=1
+
+        return lemstemwords
 
     @staticmethod
     def load_data(file_path):
         # opens a file text and load data
-        file = open(file_path, 'r')   #'r' is read
-        x, y = [],[]
-        #while loop over lines in text file
-            #split into label and text
-            #replace label with 0 or 1--append label to y
-            #process x
-        for line in file:
-            y.append(line[0]) #adds first word of line into y[]
-            line[0].pop() #removes label from the list
-            x.append(DataLoader.preprocess(line))
-        return x,y
+        with open(file_path, 'r') as file:#'r' is read
+            x, y = [],[]
+            #while loop over lines in text file
+                # split into label and text
+            line = file.readline()
+            while line:
+                split_xy = line.split('\t')
+                y.append(split_xy[0])
+                message = split_xy[1]
+                processed_text = DataLoader.preprocess(message)
+                x.append(processed_text)
+        return x, y
 
     @staticmethod
     def split_data(x, y, test_ratio=0.2):
@@ -58,31 +75,23 @@ class DataLoader: # used dataLoader_demo.py from Canvas to start this
 
 # implementing naive bayes classifier
 def train(file_path): # compute class priors: p(ham) and p(spam)
-    hamCount = 0
-    spamCount = 0
-    hamWords = []
-    spamWords = []
+    hamCount, spamCount = 0, 0
 
-    DataLoader.load_data(file_path)
+    hamWords, spamWords = [], []
+
     x, y = DataLoader.load_data(file_path)
 
-    i = 0
-    for x[i] in x:
-        DataLoader.preprocess(x)
+    # preprocess all messages
+    x = [DataLoader.preprocess(message) for message in x]
 
     #categorizing words
-    label = 0
-    for y[label] in DataLoader.load_data(file_path):
-        if y[label] == 1:
+    for i, label in enumerate(y):
+        if label == 1:
             spamCount += 1
-            word = 0
-            for x[word] in x: #counts through the words in x
-                spamWords.append(x[word]) #add words to the spamwords list
-        elif y[label] == 0:
+            spamWords.extend(x[i])  # add words to the spam words list
+        elif label == 0:
             hamCount += 1
-            word = 0
-            for x[word] in x:  # counts through the words in x
-                hamWords.append(x[word])  # add words to the hamwords list
+            hamWords.extend(x[i])  # add words to the ham words list
 
     #summing up lists and sizes
     fullWordList = [] + spamWords + hamWords
@@ -90,7 +99,7 @@ def train(file_path): # compute class priors: p(ham) and p(spam)
     # removing duplicate words
     word=0 #instantiate word
     wordCountList=[] #instantiate list
-    noDupeList = [] #this is a temp and we will overwrite fullWordList with the noDupeList
+    noDupeList = [] #this is a temp, and we will overwrite fullWordList with the noDupeList
     for fullWordList[word] in fullWordList:
         if word not in fullWordList:
             noDupeList.append(fullWordList[word])
@@ -98,34 +107,35 @@ def train(file_path): # compute class priors: p(ham) and p(spam)
             wordCountList[wordCountList.index(word, fullWordList[word])] +=1
 
 #counting the number of occurrences of a word in a text string
-    for dupeList[wordD] in dupeList:
+    wordD, wordF, wordH, wordS, totalOccurrences, hamOccurrences, spamOccurrences = 0
+    for noDupeList[wordD] in noDupeList:
         for fullWordList[wordF] in fullWordList:
             if wordF == wordD:
                 totalOccurrences+=1 #this should count how many times each unique word shows up in a line
-        for hamWordList[wordH] in hamWords:
-            if wordH == hamWord:
+        for hamWords[wordH] in hamWords:
+            if wordH in hamWords:
                 hamOccurrences+=1
-        for spamWordList[wordS] in spamWords:
-            if wordS == spamWord:
+        for spamWords[wordS] in spamWords:
+            if wordS in spamWords:
                 spamOccurrences+=1
 
         probHam = float(100 * hamOccurrences / totalOccurrences)
         probSpam = float(100 * spamOccurrences / totalOccurrences)
 
         # determines if a word is likely to be spam, ham, or neither
-        likelyhood = -1 #-1 is for neither
+        likelihood = -1 #-1 is for neither
         if probHam > probSpam:
-            likelyhood = 0
+            likelihood = 0
         elif probHam < probSpam:
-            likelyhood = 1
+            likelihood = 1
 
         # dict holding values for each word
-        wordsDict[wordD] = {
+        wordsDict = {
             "Word": wordD,
             "Occurrences": totalOccurrences,
             "P(Ham)": probHam,
             "P(Spam)": probSpam,
-            "Likeliness": likelyhood,
+            "Likeliness": likelihood,
         }
         return wordsDict
 
@@ -159,3 +169,10 @@ def computer_metrics():
     # main funtion
     # predict training and test samples
     # compute and log performance metrics
+
+if __name__ == '__main__':
+    #fileName = (input(str("Enter file name: ")))
+    fileName = "SMSSpamCollection.txt"
+    print(fileName)
+    wordsDict = train(fileName)
+    print(wordsDict)
