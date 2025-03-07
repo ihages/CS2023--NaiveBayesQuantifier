@@ -11,6 +11,7 @@ from nltk.stem import WordNetLemmatizer, PorterStemmer
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 import re
+import os
 
 nltk.download('punkt_tab')
 nltk.download('stopwords')
@@ -22,7 +23,7 @@ class DataLoader: # used dataLoader_demo.py from Canvas to start this
     def preprocess(line):
         text = line
         # convert text to lowercase
-        text = text.lower()
+        text = text.lower()  # Fix this line
 
         # remove special chars and punctuation
         text = re.sub(r'[^a-zA-Z0-9]', ' ', text)
@@ -32,37 +33,38 @@ class DataLoader: # used dataLoader_demo.py from Canvas to start this
         words = word_tokenize(text)
 
         stop_words = set(stopwords.words('english'))
-        i=0
-        for words[i] in words:
-            if words[i] in stop_words:
-                words.pop(i)
-            i+=1
-        i=0
+        words = [word for word in words if word not in stop_words]
+
         #objects
         wnl = WordNetLemmatizer()
         ps = PorterStemmer()
         lemstemwords = []
         for word in words:
             lemstemwords.append(ps.stem(wnl.lemmatize(word)))
-            i+=1
 
         return lemstemwords
 
     @staticmethod
     def load_data(file_path):
-        # opens a file text and load data
-        with open(file_path, 'r') as file:#'r' is read
-            x, y = [],[]
-            #while loop over lines in text file
-                # split into label and text
-            line = file.readline()
-            while line:
-                split_xy = line.split('\t')
-                y.append(split_xy[0])
-                message = split_xy[1]
-                processed_text = DataLoader.preprocess(message)
-                x.append(processed_text)
-        return x, y
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                x, y = [], []
+                line = file.readline()
+                while line:
+                    split_xy = line.split('\t')
+                    if len(split_xy) >= 2:
+                        y.append(split_xy[0])
+                        message = split_xy[1]
+                        processed_text = DataLoader.preprocess(message)
+                        x.append(processed_text)
+                    line = file.readline()
+            return x, y
+        except FileNotFoundError:
+            print(f"Error: The file {file_path} was not found.")
+            return [], []
+        except Exception as e:
+            print(f"An error occurred while reading the file: {e}")
+            return [], []
 
     @staticmethod
     def split_data(x, y, test_ratio=0.2):
@@ -97,52 +99,32 @@ def train(file_path): # compute class priors: p(ham) and p(spam)
     fullWordList = [] + spamWords + hamWords
 
     # removing duplicate words
-    word=0 #instantiate word
-    wordCountList=[] #instantiate list
-    noDupeList = [] #this is a temp, and we will overwrite fullWordList with the noDupeList
-    for fullWordList[word] in fullWordList:
-        if word not in fullWordList:
-            noDupeList.append(fullWordList[word])
-        if word in fullWordList:
-            wordCountList[wordCountList.index(word, fullWordList[word])] +=1
+    word_counts = {}
+    for word in fullWordList:
+        if word not in word_counts:
+            word_counts[word] = {'total': 0, 'ham': 0, 'spam': 0}
+        word_counts[word]['total'] += 1
+        if word in hamWords:
+            word_counts[word]['ham'] += 1
+        if word in spamWords:
+            word_counts[word]['spam'] += 1
 
-#counting the number of occurrences of a word in a text string
-    wordD, wordF, wordH, wordS, totalOccurrences, hamOccurrences, spamOccurrences = 0
-    for noDupeList[wordD] in noDupeList:
-        for fullWordList[wordF] in fullWordList:
-            if wordF == wordD:
-                totalOccurrences+=1 #this should count how many times each unique word shows up in a line
-        for hamWords[wordH] in hamWords:
-            if wordH in hamWords:
-                hamOccurrences+=1
-        for spamWords[wordS] in spamWords:
-            if wordS in spamWords:
-                spamOccurrences+=1
-
-        probHam = float(100 * hamOccurrences / totalOccurrences)
-        probSpam = float(100 * spamOccurrences / totalOccurrences)
-
-        # determines if a word is likely to be spam, ham, or neither
-        likelihood = -1 #-1 is for neither
+    wordsDict = {}
+    for word, counts in word_counts.items():
+        probHam = float(100 * counts['ham'] / counts['total'])
+        probSpam = float(100 * counts['spam'] / counts['total'])
+        likelihood = -1
         if probHam > probSpam:
             likelihood = 0
         elif probHam < probSpam:
             likelihood = 1
-
-        # dict holding values for each word
-        wordsDict = {
-            "Word": wordD,
-            "Occurrences": totalOccurrences,
+        wordsDict[word] = {
+            "Occurrences": counts['total'],
             "P(Ham)": probHam,
             "P(Spam)": probSpam,
             "Likeliness": likelihood,
         }
-        return wordsDict
-
-    # count word occurrences separately for ham and spam messages
-    # compute probabilities of words given a class p(word|ham), p(word|spam) with Laplace smoothing
-
-    return
+    return wordsDict
 
 def prediction():
     # compute the log probabilities of each message being ham or spam
@@ -171,8 +153,12 @@ def computer_metrics():
     # compute and log performance metrics
 
 if __name__ == '__main__':
-    #fileName = (input(str("Enter file name: ")))
-    fileName = "SMSSpamCollection.txt"
-    print(fileName)
-    wordsDict = train(fileName)
-    print(wordsDict)
+    fileName = (input(str("Enter file name: "))) #absolute path
+    absolute_path = os.path.abspath(fileName)
+    # fileName = r"data/SMSSpamCollection.txt"  # Use raw string or forward slashes
+    print(absolute_path)
+    word_dict = train(absolute_path)
+    for i in word_dict:
+        print(word_dict[i])
+# C:\Users\ihage\PycharmProjects\CS2023--NaiveBayesQuantifier\data\SMSSpamCollection.txt
+# data\SMSSpamCollection.txt
